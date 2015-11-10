@@ -56,8 +56,8 @@ type Emitter interface {
 	// On returns a channel that will receive events. As optional second
 	// argument it takes flag type to describe behavior what you expect.
 	On(string, ...flag) <-chan Event
-	// Off unsubscribe all listeners which were covered by
-	// topic(it can be pattern) as well.
+	// Off unsubscribes all listeners which were covered by
+	// topic, it can be pattern as well.
 	Off(string, ...<-chan Event) error
 	// Emit emits an event with the rest arguments to all
 	// listeners which were covered by topic(it can be pattern).
@@ -148,8 +148,8 @@ func (e *eventEmitter) On(topic string, flags ...flag) <-chan Event {
 	return l.ch
 }
 
-// Off unsubscribe all listeners which were covered by
-// topic(it can be pattern) as well.
+// Off unsubscribes all listeners which were covered by
+// topic, it can be pattern as well.
 func (e *eventEmitter) Off(topic string, channels ...<-chan Event) error {
 	e.mu.Lock()
 	match, err := e.matched(topic)
