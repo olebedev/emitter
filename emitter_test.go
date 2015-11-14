@@ -175,7 +175,7 @@ func TestOrSkipOnce(t *testing.T) {
 
 func TestVoid(t *testing.T) {
 	ee := New(0)
-	casted := ee.(*eventEmitter)
+	casted := ee.(*emitter)
 	expect(t, len(casted.flags), 1)
 	ee.Use("*", Void)
 	expect(t, len(casted.flags), 2)

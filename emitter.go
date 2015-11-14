@@ -15,15 +15,15 @@ import (
 
 // Flags used to describe what behavior
 // do you expect.
-type flag int
+type Flag int
 
 const (
 	// Reset only to clear previously defined flags.
 	// Example:
 	// ee.Use("*", Reset) // clears flags for this pattern
-	Reset flag = 0
+	Reset Flag = 0
 	// Once indicates to remove the listener after first sending.
-	Once flag = 1 << iota
+	Once Flag = 1 << iota
 	// Void indicates to skip sending.
 	Void
 	// Skip indicates to skip sending if channel is blocked.
@@ -35,14 +35,14 @@ const (
 // New returns just created Emitter interface. Capacity argument
 // will be used to create channels with given capacity
 func New(capacity uint) Emitter {
-	return &eventEmitter{
+	return &emitter{
 		listeners: make(map[string][]listener),
 		capacity:  capacity,
 		// Predefined flags for service events.
 		// They can be changed as any other flags
 		// via `Use` method. It need to avoid dead
 		// lock when unbuffered channel was created.
-		flags: map[string]flag{"listener:*": Reset | Skip},
+		flags: map[string]Flag{"listener:*": Reset | Skip},
 	}
 }
 
@@ -52,10 +52,10 @@ func New(capacity uint) Emitter {
 type Emitter interface {
 	// Use registers flags for the pattern, returns an error if pattern
 	// invalid or flags are not specified.
-	Use(string, ...flag) error
+	Use(string, ...Flag) error
 	// On returns a channel that will receive events. As optional second
 	// argument it takes flag type to describe behavior what you expect.
-	On(string, ...flag) <-chan Event
+	On(string, ...Flag) <-chan Event
 	// Off unsubscribes all listeners which were covered by
 	// topic, it can be pattern as well.
 	Off(string, ...<-chan Event) error
@@ -69,15 +69,15 @@ type Emitter interface {
 	Topics() []string
 }
 
-type eventEmitter struct {
+type emitter struct {
 	mu        sync.Mutex
 	listeners map[string][]listener
 	capacity  uint
-	flags     map[string]flag
+	flags     map[string]Flag
 }
 
-func newListener(capacity uint, flags ...flag) listener {
-	var f flag
+func newListener(capacity uint, flags ...Flag) listener {
+	var f Flag
 	// reduce the flags
 	for _, item := range flags {
 		f |= item
@@ -90,12 +90,12 @@ func newListener(capacity uint, flags ...flag) listener {
 
 type listener struct {
 	ch    chan Event
-	flags flag
+	flags Flag
 }
 
 // Use registers flags for the pattern, returns an error if pattern
 // invalid or flags are not specified.
-func (e *eventEmitter) Use(pattern string, flags ...flag) error {
+func (e *emitter) Use(pattern string, flags ...Flag) error {
 	if _, err := path.Match(pattern, "---"); err != nil {
 		return err
 	}
@@ -108,7 +108,7 @@ func (e *eventEmitter) Use(pattern string, flags ...flag) error {
 	defer e.mu.Unlock()
 
 	// reduce the flags
-	var f flag
+	var f Flag
 	for _, item := range flags {
 		if item == Reset {
 			delete(e.flags, pattern)
@@ -121,8 +121,8 @@ func (e *eventEmitter) Use(pattern string, flags ...flag) error {
 	return nil
 }
 
-func (e *eventEmitter) getFlags(topic string) flag {
-	var f flag
+func (e *emitter) getFlags(topic string) Flag {
+	var f Flag
 	for pattern, v := range e.flags {
 		if match, _ := path.Match(pattern, topic); match {
 			f |= v
@@ -135,7 +135,7 @@ func (e *eventEmitter) getFlags(topic string) flag {
 
 // On returns a channel that will receive events. As optional second
 // argument it takes flag type to describe behavior what you expect.
-func (e *eventEmitter) On(topic string, flags ...flag) <-chan Event {
+func (e *emitter) On(topic string, flags ...Flag) <-chan Event {
 	e.mu.Lock()
 	l := newListener(e.capacity, flags...)
 	if listeners, ok := e.listeners[topic]; ok {
@@ -150,7 +150,7 @@ func (e *eventEmitter) On(topic string, flags ...flag) <-chan Event {
 
 // Off unsubscribes all listeners which were covered by
 // topic, it can be pattern as well.
-func (e *eventEmitter) Off(topic string, channels ...<-chan Event) error {
+func (e *emitter) Off(topic string, channels ...<-chan Event) error {
 	e.mu.Lock()
 	match, err := e.matched(topic)
 	if err != nil {
@@ -192,7 +192,7 @@ func (e *eventEmitter) Off(topic string, channels ...<-chan Event) error {
 
 // Listeners returns slice of listeners which were covered by
 // topic(it can be pattern) and error if pattern is invalid.
-func (e *eventEmitter) Listeners(topic string) ([]<-chan Event, error) {
+func (e *emitter) Listeners(topic string) ([]<-chan Event, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	var acc []<-chan Event
@@ -212,7 +212,7 @@ func (e *eventEmitter) Listeners(topic string) ([]<-chan Event, error) {
 }
 
 // Topics returns all existing topics.
-func (e *eventEmitter) Topics() []string {
+func (e *emitter) Topics() []string {
 	acc := make([]string, len(e.listeners))
 	i := 0
 	for k := range e.listeners {
@@ -226,7 +226,7 @@ func readOnly(ch chan Event) <-chan Event { return ch }
 
 // Emit emits an event with the rest arguments to all
 // listeners which were covered by topic(it can be pattern).
-func (e *eventEmitter) Emit(topic string, args ...interface{}) error {
+func (e *emitter) Emit(topic string, args ...interface{}) error {
 	e.mu.Lock()
 	match, err := e.matched(topic)
 	if err != nil {
@@ -289,7 +289,7 @@ func (e *eventEmitter) Emit(topic string, args ...interface{}) error {
 	return nil
 }
 
-func (e *eventEmitter) matched(topic string) ([]string, error) {
+func (e *emitter) matched(topic string) ([]string, error) {
 	acc := []string{}
 	var err error
 	for k := range e.listeners {
