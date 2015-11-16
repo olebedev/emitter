@@ -3,8 +3,9 @@ package emitter
 // Event is a structure to send events contains
 // some helpers to cast primitive types easily.
 type Event struct {
-	Topic string
-	Args  []interface{}
+	Topic, OriginalTopic string
+	Flags                Flag
+	Args                 []interface{}
 }
 
 // Int returns casted into int type argument by index.
