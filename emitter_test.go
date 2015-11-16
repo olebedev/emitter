@@ -3,6 +3,7 @@ package emitter
 import (
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestFlatBasic(t *testing.T) {
@@ -50,7 +51,7 @@ func TestBufferedBasic(t *testing.T) {
 		expect(t, len(event.Args), 2)
 		ch <- struct{}{}
 	}()
-	ee.Emit("test", nil, true)
+	<-ee.Emit("test", nil, true)
 	<-ch
 }
 
@@ -161,7 +162,7 @@ func TestOnOffAll(t *testing.T) {
 
 func TestOrSkipOnce(t *testing.T) {
 	ee := New(0)
-	pipe := ee.On("test", FlagSkip, FlagOnce)
+	pipe := ee.On("test", FlagSkip|FlagOnce)
 	<-ee.Emit("test")
 	l, err := ee.Listeners("test")
 	expect(t, len(l), 1)
@@ -202,7 +203,7 @@ func TestVoid(t *testing.T) {
 
 func TestOnceClose(t *testing.T) {
 	ee := New(0)
-	ee.On("test", FlagClose, FlagOnce)
+	ee.On("test", FlagClose|FlagOnce)
 	// unblocked, the listener will be
 	// closed after first attempt
 	<-ee.Emit("test")
@@ -212,6 +213,53 @@ func TestUse(t *testing.T) {
 	ee := New(0)
 	expect(t, ee.Use("\\").Error(), "syntax error in pattern")
 	expect(t, ee.Use("-").Error(), "At least one flag must be specified")
+}
+
+func TestCancellation(t *testing.T) {
+	ee := New(0)
+	pipe := ee.On("test", FlagOnce)
+	ch := make(chan struct{})
+	go func() {
+		done := ee.Emit("test", 1)
+		select {
+		case <-done:
+			expect(t, "cancellation success", "cancellation failure")
+		case <-time.After(1e2):
+			done <- nil
+			ch <- struct{}{}
+		}
+	}()
+
+	<-ch
+
+	go ee.Emit("test", 2)
+	l, _ := ee.Listeners("*")
+	expect(t, len(l), 1)
+	e := <-pipe
+	expect(t, e.Int(0), 2)
+	expect(t, e.Flags, e.Flags|FlagOnce)
+}
+
+func TestSyncCancellation(t *testing.T) {
+	ee := New(0)
+	pipe := ee.On("test", FlagOnce|FlagSkip)
+	close(ee.Emit("test"))
+	select {
+	case e := <-pipe:
+		expect(t, e, nil)
+	default:
+	}
+}
+
+func TestBackwardPattern(t *testing.T) {
+	ee := New(0)
+	ee.Use("test", FlagClose)
+	go ee.Emit("test")
+	e := <-ee.On("*", FlagOnce)
+	expect(t, e.OriginalTopic, "test")
+	expect(t, e.Topic, "*")
+	expect(t, e.Flags, e.Flags|FlagClose)
+	expect(t, e.Flags, e.Flags|FlagOnce)
 }
 
 func expect(t *testing.T, a interface{}, b interface{}) {

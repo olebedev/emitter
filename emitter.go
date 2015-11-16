@@ -252,6 +252,7 @@ func (e *emitter) Emit(topic string, args ...interface{}) chan error {
 			flags := lstnr.flags | topicFlags
 			wg.Add(1)
 			go func(lstnr listener, topicFlags Flag, _topic string) {
+				e.mu.Lock()
 				// unwind the flags
 				isOnce := (flags | FlagOnce) == flags
 				isVoid := (flags | FlagVoid) == flags
@@ -260,6 +261,7 @@ func (e *emitter) Emit(topic string, args ...interface{}) chan error {
 
 				if isVoid {
 					wg.Done()
+					e.mu.Unlock()
 					return
 				}
 				event := Event{
@@ -268,50 +270,40 @@ func (e *emitter) Emit(topic string, args ...interface{}) chan error {
 					Flags:         flags,
 					Args:          args,
 				}
-				if sent, cancaled := send(
+				if sent, canceled := send(
 					done,
 					lstnr.ch,
 					event,
 					!(isSkip || isClose),
-				); !sent {
+				); !sent && !canceled {
 					// if not sent
 					if isClose {
-						e.Off(_topic, lstnr.ch)
+						defer e.Off(_topic, lstnr.ch)
 					}
-				} else if cancaled {
-					// if sending canceled
-
-				} else {
+				} else if !canceled {
 					// if event was sent successfully
 					if isOnce {
-						e.Off(_topic, lstnr.ch)
+						defer e.Off(_topic, lstnr.ch)
 					}
 				}
+				// pass if cancaled
 				wg.Done()
+				e.mu.Unlock()
 			}(lstnr, topicFlags, _topic)
 
 		}
 
 		go func(done chan error) {
+			defer func() { recover() }()
 			wg.Wait()
 			done <- nil
-			tryToClose(done)
+			close(done)
 		}(done)
 
 	}
 
 	e.mu.Unlock()
 	return done
-}
-
-func tryToClose(c chan error) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = errors.New(r.(string))
-		}
-	}()
-	close(c)
-	return
 }
 
 func (e *emitter) matched(topic string) ([]string, error) {
@@ -336,21 +328,25 @@ func drop(l []listener, i int) []listener {
 }
 
 func send(done chan error, ch chan Event, e Event, wait bool) (bool, bool) {
-	select {
-	case <-done:
-		break
-	default:
-		if !wait {
-			select {
-			case ch <- e:
-				return true, false
-			default:
-				return false, false
-			}
-		} else {
-			ch <- e
+
+	if !wait {
+		select {
+		case <-done:
+			break
+		case ch <- e:
+			return true, false
+		default:
+			return false, false
+		}
+
+	} else {
+		select {
+		case <-done:
+			break
+		case ch <- e:
 			return true, false
 		}
+
 	}
 	return false, true
 }
