@@ -17,7 +17,7 @@ func TestFlatClose(t *testing.T) {
 	ee := New(0)
 	ch := make(chan struct{})
 	pipe := ee.On("test")
-	ee.On("test", FlagClose)
+	ee.On("test", Close)
 	l, _ := ee.Listeners("test")
 	expect(t, len(l), 2)
 	go func() {
@@ -73,7 +73,7 @@ func TestRange(t *testing.T) {
 	ee := New(0)
 	c := 42
 	go ee.Emit("test", "range", "it", c)
-	for event := range ee.On("test", FlagClose) { // Close if channel is blocked
+	for event := range ee.On("test", Close) { // Close if channel is blocked
 		expect(t, event.String(0), "range")
 		expect(t, event.String(1), "it")
 		expect(t, event.Int(2), c)
@@ -90,7 +90,7 @@ func TestRange(t *testing.T) {
 func TestCloseOnBlock(t *testing.T) {
 	ee := New(0)
 
-	ee.On("test0", FlagClose)
+	ee.On("test0", Close)
 	l, _ := ee.Listeners("test0")
 	expect(t, len(l), 1)
 	expect(t, len(ee.Topics()), 1)
@@ -100,7 +100,7 @@ func TestCloseOnBlock(t *testing.T) {
 	expect(t, len(ee.Topics()), 0)
 
 	ee = New(3)
-	ee.Use("test*", FlagClose)
+	ee.Use("test*", Close)
 	ee.On("test1")
 	ee.On("test2")
 
@@ -162,7 +162,7 @@ func TestOnOffAll(t *testing.T) {
 
 func TestOrSkipOnce(t *testing.T) {
 	ee := New(0)
-	pipe := ee.On("test", FlagSkip|FlagOnce)
+	pipe := ee.On("test", Skip, Once)
 	<-ee.Emit("test")
 	l, err := ee.Listeners("test")
 	expect(t, len(l), 1)
@@ -177,9 +177,9 @@ func TestOrSkipOnce(t *testing.T) {
 func TestVoid(t *testing.T) {
 	ee := New(0)
 	casted := ee.(*emitter)
-	expect(t, len(casted.flags), 0)
-	ee.Use("*", FlagVoid)
-	expect(t, len(casted.flags), 1)
+	expect(t, len(casted.middlewares), 0)
+	ee.Use("*", Void)
+	expect(t, len(casted.middlewares), 1)
 	ch := make(chan struct{})
 	pipe := ee.On("test")
 	go func() {
@@ -191,19 +191,19 @@ func TestVoid(t *testing.T) {
 	}()
 	go ee.Emit("test")
 	<-ch
-	ee.Use("*", FlagReset)
+	ee.Use("*")
 	ee.Off("*", pipe)
-	expect(t, len(casted.flags), 0)
+	expect(t, len(casted.middlewares), 0)
 	l, _ := ee.Listeners("*")
 	expect(t, len(l), 0)
-	ee.On("test", FlagVoid)
+	ee.On("test", Void)
 	// unblocked, sending will be skipped
 	<-ee.Emit("test")
 }
 
 func TestOnceClose(t *testing.T) {
 	ee := New(0)
-	ee.On("test", FlagClose|FlagOnce)
+	ee.On("test", Close, Once)
 	// unblocked, the listener will be
 	// closed after first attempt
 	<-ee.Emit("test")
@@ -212,12 +212,11 @@ func TestOnceClose(t *testing.T) {
 func TestUse(t *testing.T) {
 	ee := New(0)
 	expect(t, ee.Use("\\").Error(), "syntax error in pattern")
-	expect(t, ee.Use("-").Error(), "At least one flag must be specified")
 }
 
 func TestCancellation(t *testing.T) {
 	ee := New(0)
-	pipe := ee.On("test", FlagOnce)
+	pipe := ee.On("test", Once)
 	ch := make(chan struct{})
 	go func() {
 		done := ee.Emit("test", 1)
@@ -242,7 +241,7 @@ func TestCancellation(t *testing.T) {
 
 func TestSyncCancellation(t *testing.T) {
 	ee := New(0)
-	pipe := ee.On("test", FlagOnce|FlagSkip)
+	pipe := ee.On("test", Once, Skip)
 	close(ee.Emit("test"))
 	select {
 	case e := <-pipe:
@@ -253,13 +252,20 @@ func TestSyncCancellation(t *testing.T) {
 
 func TestBackwardPattern(t *testing.T) {
 	ee := New(0)
-	ee.Use("test", FlagClose)
+	ee.Use("test", Close)
 	go ee.Emit("test")
-	e := <-ee.On("*", FlagOnce)
+	e := <-ee.On("*", Once)
 	expect(t, e.OriginalTopic, "test")
 	expect(t, e.Topic, "*")
 	expect(t, e.Flags, e.Flags|FlagClose)
 	expect(t, e.Flags, e.Flags|FlagOnce)
+}
+
+func TestResetMiddleware(t *testing.T) {
+	ee := New(0)
+	ee.Use("*", Void, Reset)
+	go ee.Emit("test")
+	<-ee.On("test")
 }
 
 func expect(t *testing.T, a interface{}, b interface{}) {

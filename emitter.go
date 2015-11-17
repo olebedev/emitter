@@ -8,43 +8,53 @@ The design goals are:
 package emitter
 
 import (
-	"errors"
 	"path"
 	"sync"
 )
 
-// Flags used to describe what behavior
+// Flag used to describe what behavior
 // do you expect.
 type Flag int
 
 const (
-	// Reset only to clear previously defined flags.
+	// FlagReset only to clear previously defined flags.
 	// Example:
 	// ee.Use("*", Reset) // clears flags for this pattern
 	FlagReset Flag = 0
-	// Once indicates to remove the listener after first sending.
+	// FlagOnce indicates to remove the listener after first sending.
 	FlagOnce Flag = 1 << iota
-	// Void indicates to skip sending.
+	// FlagVoid indicates to skip sending.
 	FlagVoid
-	// Skip indicates to skip sending if channel is blocked.
+	// FlagSkip indicates to skip sending if channel is blocked.
 	FlagSkip
-	// Close indicates to drop listener if channel is blocked.
+	// FlagClose indicates to drop listener if channel is blocked.
 	FlagClose
 )
 
-type Error int
+// Middlewares.
 
-const (
-	ErrorPattern Error = -1 << iota
-)
+// Reset resets flags
+func Reset(e *Event) { e.Flags = FlagReset }
+
+// Once sets FlagOnce flag for an event
+func Once(e *Event) { e.Flags = e.Flags | FlagOnce }
+
+// Void sets FlagVoid flag for an event
+func Void(e *Event) { e.Flags = e.Flags | FlagVoid }
+
+// Skip sets FlagSkip flag for an event
+func Skip(e *Event) { e.Flags = e.Flags | FlagSkip }
+
+// Close sets FlagClose flag for an event
+func Close(e *Event) { e.Flags = e.Flags | FlagClose }
 
 // New returns just created Emitter interface. Capacity argument
 // will be used to create channels with given capacity
 func New(capacity uint) Emitter {
 	return &emitter{
-		listeners: make(map[string][]listener),
-		capacity:  capacity,
-		flags:     map[string]Flag{},
+		listeners:   make(map[string][]listener),
+		capacity:    capacity,
+		middlewares: make(map[string][]func(*Event)),
 	}
 }
 
@@ -52,12 +62,12 @@ func New(capacity uint) Emitter {
 // event, close receiver channel, get info
 // about topics and listeners
 type Emitter interface {
-	// Use registers flags for the pattern, returns an error if pattern
-	// invalid or flags are not specified.
-	Use(string, ...Flag) error
+	// Use registers middlewares for the pattern, returns an error if pattern
+	// invalid or middlewares are not specified.
+	Use(string, ...func(*Event)) error
 	// On returns a channel that will receive events. As optional second
-	// argument it takes flag type to describe behavior what you expect.
-	On(string, ...Flag) <-chan Event
+	// argument it takes func(*Event) type to describe behavior what you expect.
+	On(string, ...func(*Event)) <-chan Event
 	// Off unsubscribes all listeners which were covered by
 	// topic, it can be pattern as well.
 	Off(string, ...<-chan Event) error
@@ -72,74 +82,58 @@ type Emitter interface {
 }
 
 type emitter struct {
-	mu        sync.Mutex
-	listeners map[string][]listener
-	capacity  uint
-	flags     map[string]Flag
+	mu          sync.Mutex
+	listeners   map[string][]listener
+	capacity    uint
+	middlewares map[string][]func(*Event)
 }
 
-func newListener(capacity uint, flags ...Flag) listener {
-	var f Flag
-	// reduce the flags
-	for _, item := range flags {
-		f |= item
-	}
+func newListener(capacity uint, middlewares ...func(*Event)) listener {
 	return listener{
-		ch:    make(chan Event, capacity),
-		flags: f,
+		ch:          make(chan Event, capacity),
+		middlewares: middlewares,
 	}
 }
 
 type listener struct {
-	ch    chan Event
-	flags Flag
+	ch          chan Event
+	middlewares []func(*Event)
 }
 
-// Use registers flags for the pattern, returns an error if pattern
-// invalid or flags are not specified.
-func (e *emitter) Use(pattern string, flags ...Flag) error {
+// Use registers middlewares for the pattern, returns an error if pattern
+// invalid.
+func (e *emitter) Use(pattern string, middlewares ...func(*Event)) error {
 	if _, err := path.Match(pattern, "---"); err != nil {
 		return err
-	}
-
-	if len(flags) == 0 {
-		return errors.New("At least one flag must be specified")
 	}
 
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	// reduce the flags
-	var f Flag
-	for _, item := range flags {
-		if item == FlagReset {
-			delete(e.flags, pattern)
-			return nil
-		}
-		f |= item
+	e.middlewares[pattern] = middlewares
+	if len(e.middlewares[pattern]) == 0 {
+		delete(e.middlewares, pattern)
 	}
-
-	e.flags[pattern] = f
 	return nil
 }
 
-func (e *emitter) getFlags(topic string) Flag {
-	var f Flag
-	for pattern, v := range e.flags {
+func (e *emitter) getMiddlewares(topic string) []func(*Event) {
+	var acc []func(*Event)
+	for pattern, v := range e.middlewares {
 		if match, _ := path.Match(pattern, topic); match {
-			f |= v
+			acc = append(acc, v...)
 		} else if match, _ := path.Match(topic, pattern); match {
-			f |= v
+			acc = append(acc, v...)
 		}
 	}
-	return f
+	return acc
 }
 
 // On returns a channel that will receive events. As optional second
 // argument it takes flag type to describe behavior what you expect.
-func (e *emitter) On(topic string, flags ...Flag) <-chan Event {
+func (e *emitter) On(topic string, middlewares ...func(*Event)) <-chan Event {
 	e.mu.Lock()
-	l := newListener(e.capacity, flags...)
+	l := newListener(e.capacity, middlewares...)
 	if listeners, ok := e.listeners[topic]; ok {
 		e.listeners[topic] = append(listeners, l)
 	} else {
@@ -238,42 +232,45 @@ func (e *emitter) Emit(topic string, args ...interface{}) chan error {
 		return done
 	}
 
-	// fmt.Printf("[debug] 1 %-v\n", match)
 	for _, _topic := range match {
 		listeners := e.listeners[_topic]
-		topicFlags := e.getFlags(_topic)
+		event := Event{
+			Topic:         _topic,
+			OriginalTopic: topic,
+			Args:          args,
+		}
+
+		applyMiddlewares(&event, e.getMiddlewares(_topic))
+
 		// whole topic is skipping
-		if (topicFlags | FlagVoid) == topicFlags {
+		if (event.Flags | FlagVoid) == event.Flags {
 			continue
 		}
 
 		for i := len(listeners) - 1; i >= 0; i-- {
 			lstnr := listeners[i]
-			flags := lstnr.flags | topicFlags
+			evn := *(&event) // clone the event
+			applyMiddlewares(&evn, lstnr.middlewares)
+
 			wg.Add(1)
-			go func(lstnr listener, topicFlags Flag, _topic string) {
+			go func(lstnr listener, event *Event, _topic string) {
 				e.mu.Lock()
 				// unwind the flags
-				isOnce := (flags | FlagOnce) == flags
-				isVoid := (flags | FlagVoid) == flags
-				isSkip := (flags | FlagSkip) == flags
-				isClose := (flags | FlagClose) == flags
+				isOnce := (event.Flags | FlagOnce) == event.Flags
+				isVoid := (event.Flags | FlagVoid) == event.Flags
+				isSkip := (event.Flags | FlagSkip) == event.Flags
+				isClose := (event.Flags | FlagClose) == event.Flags
 
 				if isVoid {
 					wg.Done()
 					e.mu.Unlock()
 					return
 				}
-				event := Event{
-					Topic:         _topic,
-					OriginalTopic: topic,
-					Flags:         flags,
-					Args:          args,
-				}
+
 				if sent, canceled := send(
 					done,
 					lstnr.ch,
-					event,
+					*event,
 					!(isSkip || isClose),
 				); !sent && !canceled {
 					// if not sent
@@ -289,7 +286,7 @@ func (e *emitter) Emit(topic string, args ...interface{}) chan error {
 				// pass if cancaled
 				wg.Done()
 				e.mu.Unlock()
-			}(lstnr, topicFlags, _topic)
+			}(lstnr, &evn, _topic)
 
 		}
 
@@ -304,6 +301,12 @@ func (e *emitter) Emit(topic string, args ...interface{}) chan error {
 
 	e.mu.Unlock()
 	return done
+}
+
+func applyMiddlewares(e *Event, fns []func(*Event)) {
+	for i := range fns {
+		fns[i](e)
+	}
 }
 
 func (e *emitter) matched(topic string) ([]string, error) {
