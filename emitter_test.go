@@ -268,6 +268,19 @@ func TestResetMiddleware(t *testing.T) {
 	<-ee.On("test")
 }
 
+func TestMiddleware(t *testing.T) {
+	ee := New(10)
+	pipe := ee.On("test", func(e *Event) {
+		if e.Int(0)%3 != 0 {
+			e.Flags = e.Flags | FlagVoid
+		}
+	})
+	for i := 0; i < 10; i++ {
+		<-ee.Emit("test", i)
+	}
+	expect(t, len(pipe), 4)
+}
+
 func expect(t *testing.T, a interface{}, b interface{}) {
 	if a != b {
 		t.Errorf("Expected %v (type %v) - Got %v (type %v)", b, reflect.TypeOf(b), a, reflect.TypeOf(a))

@@ -33,19 +33,19 @@ const (
 
 // Middlewares.
 
-// Reset resets flags
+// Reset middleware resets flags
 func Reset(e *Event) { e.Flags = FlagReset }
 
-// Once sets FlagOnce flag for an event
+// Once middleware sets FlagOnce flag for an event
 func Once(e *Event) { e.Flags = e.Flags | FlagOnce }
 
-// Void sets FlagVoid flag for an event
+// Void middleware sets FlagVoid flag for an event
 func Void(e *Event) { e.Flags = e.Flags | FlagVoid }
 
-// Skip sets FlagSkip flag for an event
+// Skip middleware sets FlagSkip flag for an event
 func Skip(e *Event) { e.Flags = e.Flags | FlagSkip }
 
-// Close sets FlagClose flag for an event
+// Close middleware sets FlagClose flag for an event
 func Close(e *Event) { e.Flags = e.Flags | FlagClose }
 
 // New returns just created Emitter interface. Capacity argument
@@ -101,7 +101,7 @@ type listener struct {
 }
 
 // Use registers middlewares for the pattern, returns an error if pattern
-// invalid.
+// is invalid.
 func (e *emitter) Use(pattern string, middlewares ...func(*Event)) error {
 	if _, err := path.Match(pattern, "---"); err != nil {
 		return err
@@ -117,20 +117,8 @@ func (e *emitter) Use(pattern string, middlewares ...func(*Event)) error {
 	return nil
 }
 
-func (e *emitter) getMiddlewares(topic string) []func(*Event) {
-	var acc []func(*Event)
-	for pattern, v := range e.middlewares {
-		if match, _ := path.Match(pattern, topic); match {
-			acc = append(acc, v...)
-		} else if match, _ := path.Match(topic, pattern); match {
-			acc = append(acc, v...)
-		}
-	}
-	return acc
-}
-
 // On returns a channel that will receive events. As optional second
-// argument it takes flag type to describe behavior what you expect.
+// argument it takes middlewares.
 func (e *emitter) On(topic string, middlewares ...func(*Event)) <-chan Event {
 	e.mu.Lock()
 	l := newListener(e.capacity, middlewares...)
@@ -222,7 +210,6 @@ func (e *emitter) Topics() []string {
 func (e *emitter) Emit(topic string, args ...interface{}) chan error {
 	e.mu.Lock()
 	done := make(chan error, 1)
-	var wg sync.WaitGroup
 
 	match, err := e.matched(topic)
 	if err != nil {
@@ -232,6 +219,7 @@ func (e *emitter) Emit(topic string, args ...interface{}) chan error {
 		return done
 	}
 
+	var wg sync.WaitGroup
 	for _, _topic := range match {
 		listeners := e.listeners[_topic]
 		event := Event{
@@ -261,6 +249,7 @@ func (e *emitter) Emit(topic string, args ...interface{}) chan error {
 				isSkip := (event.Flags | FlagSkip) == event.Flags
 				isClose := (event.Flags | FlagClose) == event.Flags
 
+				// TODO: move isVoid checking into main gouroutine
 				if isVoid {
 					wg.Done()
 					e.mu.Unlock()
@@ -301,6 +290,18 @@ func (e *emitter) Emit(topic string, args ...interface{}) chan error {
 
 	e.mu.Unlock()
 	return done
+}
+
+func (e *emitter) getMiddlewares(topic string) []func(*Event) {
+	var acc []func(*Event)
+	for pattern, v := range e.middlewares {
+		if match, _ := path.Match(pattern, topic); match {
+			acc = append(acc, v...)
+		} else if match, _ := path.Match(topic, pattern); match {
+			acc = append(acc, v...)
+		}
+	}
+	return acc
 }
 
 func applyMiddlewares(e *Event, fns []func(*Event)) {

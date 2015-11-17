@@ -15,8 +15,4 @@ func TestEventTypeCast(t *testing.T) {
 	expect(t, e.Float(5, 37.42), 37.42)
 	expect(t, e.String(6, "_"), "_")
 	expect(t, e.Bool(7, true), true)
-
-	ee.On("test", func(e *Event) {
-		e.Flags = e.Flags | FlagOnce | FlagSkip
-	})
 }
