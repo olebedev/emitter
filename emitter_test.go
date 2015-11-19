@@ -275,10 +275,13 @@ func TestMiddleware(t *testing.T) {
 			e.Flags = e.Flags | FlagVoid
 		}
 	})
+	pipe2 := ee.On("test")
+
 	for i := 0; i < 10; i++ {
 		<-ee.Emit("test", i)
 	}
 	expect(t, len(pipe), 4)
+	expect(t, len(pipe2), 10)
 }
 
 func expect(t *testing.T, a interface{}, b interface{}) {

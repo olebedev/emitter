@@ -29,6 +29,8 @@ const (
 	FlagSkip
 	// FlagClose indicates to drop listener if channel is blocked.
 	FlagClose
+	// FlagSync indicates to send an event synchronously.
+	FlagSync
 )
 
 // Middlewares.
@@ -47,6 +49,9 @@ func Skip(e *Event) { e.Flags = e.Flags | FlagSkip }
 
 // Close middleware sets FlagClose flag for an event
 func Close(e *Event) { e.Flags = e.Flags | FlagClose }
+
+// Sync middleware sets FlagSync flag for an event
+func Sync(e *Event) { e.Flags = e.Flags | FlagSync }
 
 // New returns just created Emitter interface. Capacity argument
 // will be used to create channels with given capacity
@@ -220,6 +225,7 @@ func (e *emitter) Emit(topic string, args ...interface{}) chan error {
 	}
 
 	var wg sync.WaitGroup
+	var haveToWait bool
 	for _, _topic := range match {
 		listeners := e.listeners[_topic]
 		event := Event{
@@ -241,55 +247,69 @@ func (e *emitter) Emit(topic string, args ...interface{}) chan error {
 			applyMiddlewares(&evn, lstnr.middlewares)
 
 			wg.Add(1)
-			go func(lstnr listener, event *Event, _topic string) {
+			haveToWait = true
+			go func(lstnr listener, event *Event) {
 				e.mu.Lock()
-				// unwind the flags
-				isOnce := (event.Flags | FlagOnce) == event.Flags
 				isVoid := (event.Flags | FlagVoid) == event.Flags
-				isSkip := (event.Flags | FlagSkip) == event.Flags
-				isClose := (event.Flags | FlagClose) == event.Flags
-
-				// TODO: move isVoid checking into main gouroutine
 				if isVoid {
 					wg.Done()
 					e.mu.Unlock()
 					return
 				}
 
-				if sent, canceled := send(
-					done,
-					lstnr.ch,
-					*event,
-					!(isSkip || isClose),
-				); !sent && !canceled {
-					// if not sent
-					if isClose {
-						defer e.Off(_topic, lstnr.ch)
-					}
-				} else if !canceled {
-					// if event was sent successfully
-					if isOnce {
-						defer e.Off(_topic, lstnr.ch)
-					}
+				_, remove, _ := pushEvent(done, &lstnr, event)
+				if remove {
+					defer e.Off(event.Topic, lstnr.ch)
 				}
-				// pass if cancaled
 				wg.Done()
 				e.mu.Unlock()
-			}(lstnr, &evn, _topic)
-
+			}(lstnr, &evn)
 		}
 
-		go func(done chan error) {
-			defer func() { recover() }()
-			wg.Wait()
+		if haveToWait {
+			go func(done chan error) {
+				defer func() { recover() }()
+				wg.Wait()
+				done <- nil
+				close(done)
+			}(done)
+		} else {
 			done <- nil
 			close(done)
-		}(done)
+		}
 
 	}
 
 	e.mu.Unlock()
 	return done
+}
+
+func pushEvent(
+	done chan error,
+	lstnr *listener,
+	event *Event,
+) (success, remove bool, err error) {
+	// unwind the flags
+	isOnce := (event.Flags | FlagOnce) == event.Flags
+	isSkip := (event.Flags | FlagSkip) == event.Flags
+	isClose := (event.Flags | FlagClose) == event.Flags
+
+	sent, canceled := send(
+		done,
+		lstnr.ch,
+		*event,
+		!(isSkip || isClose),
+	)
+	success = sent
+
+	if !sent && !canceled {
+		remove = isClose
+		// if not sent
+	} else if !canceled {
+		// if event was sent successfully
+		remove = isOnce
+	}
+	return
 }
 
 func (e *emitter) getMiddlewares(topic string) []func(*Event) {
