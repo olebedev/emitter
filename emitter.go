@@ -244,40 +244,40 @@ func (e *emitter) Emit(topic string, args ...interface{}) chan error {
 	Loop:
 		for i := len(listeners) - 1; i >= 0; i-- {
 			lstnr := listeners[i]
-			evn := *(&event) // clone the event
+			evn := *(&event) // copy the event
 			applyMiddlewares(&evn, lstnr.middlewares)
+
 			if (evn.Flags | FlagVoid) == evn.Flags {
 				continue Loop
 			}
-			wg.Add(1)
-			haveToWait = true
-			go func(lstnr listener, event *Event) {
-				e.mu.Lock()
-				isVoid := (event.Flags | FlagVoid) == event.Flags
-				if isVoid {
-					wg.Done()
-					e.mu.Unlock()
-					return
-				}
 
-				_, remove, _ := pushEvent(done, &lstnr, event)
+			if (evn.Flags | FlagSync) == evn.Flags {
+				_, remove, _ := pushEvent(done, &lstnr, &evn)
 				if remove {
 					defer e.Off(event.Topic, lstnr.ch)
 				}
-				wg.Done()
-				e.mu.Unlock()
-			}(lstnr, &evn)
+			} else {
+				wg.Add(1)
+				haveToWait = true
+				go func(lstnr listener, event *Event) {
+					e.mu.Lock()
+					_, remove, _ := pushEvent(done, &lstnr, event)
+					if remove {
+						defer e.Off(event.Topic, lstnr.ch)
+					}
+					wg.Done()
+					e.mu.Unlock()
+				}(lstnr, &evn)
+			}
 		}
 
 		if haveToWait {
 			go func(done chan error) {
 				defer func() { recover() }()
 				wg.Wait()
-				done <- nil
 				close(done)
 			}(done)
 		} else {
-			done <- nil
 			close(done)
 		}
 

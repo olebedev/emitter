@@ -284,6 +284,24 @@ func TestMiddleware(t *testing.T) {
 	expect(t, len(pipe2), 10)
 }
 
+func TestSync(t *testing.T) {
+	ee := New(1)
+	ee.Use("*", Sync)
+	pipe := ee.On("test")
+	pipe2 := ee.On("test", Once)
+	err, isOpened := <-ee.Emit("test", 42)
+	expect(t, len(pipe), 1)
+	expect(t, len(pipe2), 1)
+	expect(t, err == nil, true)
+	expect(t, isOpened, false)
+
+	e, isOpened := <-pipe2
+	expect(t, e.Int(0), 42)
+	expect(t, isOpened, true)
+	_, isOpened = <-pipe2
+	expect(t, isOpened, false)
+}
+
 func expect(t *testing.T, a interface{}, b interface{}) {
 	if a != b {
 		t.Errorf("Expected %v (type %v) - Got %v (type %v)", b, reflect.TypeOf(b), a, reflect.TypeOf(a))
