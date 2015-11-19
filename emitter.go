@@ -241,11 +241,14 @@ func (e *emitter) Emit(topic string, args ...interface{}) chan error {
 			continue
 		}
 
+	Loop:
 		for i := len(listeners) - 1; i >= 0; i-- {
 			lstnr := listeners[i]
 			evn := *(&event) // clone the event
 			applyMiddlewares(&evn, lstnr.middlewares)
-
+			if (evn.Flags | FlagVoid) == evn.Flags {
+				continue Loop
+			}
 			wg.Add(1)
 			haveToWait = true
 			go func(lstnr listener, event *Event) {
