@@ -25,7 +25,8 @@ func TestFlatClose(t *testing.T) {
 		expect(t, len(event.Args), 1)
 		ch <- struct{}{}
 	}()
-	ee.Emit("test", "close")
+	err := <-ee.Emit("test", "close")
+	expect(t, err == nil, true)
 	<-ch
 
 	go func() {
@@ -34,6 +35,7 @@ func TestFlatClose(t *testing.T) {
 		ch <- struct{}{}
 	}()
 	l, _ = ee.Listeners("test")
+
 	expect(t, len(l), 1)
 	ee.Off("test", pipe)
 
@@ -223,7 +225,7 @@ func TestCancellation(t *testing.T) {
 		select {
 		case <-done:
 			expect(t, "cancellation success", "cancellation failure")
-		case <-time.After(1e2):
+		case <-time.After(1e5):
 			done <- nil
 			ch <- struct{}{}
 		}
