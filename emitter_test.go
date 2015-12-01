@@ -7,7 +7,7 @@ import (
 )
 
 func TestFlatBasic(t *testing.T) {
-	ee := New(0)
+	ee := &Emitter{}
 	go ee.Emit("test", nil)
 	event := <-ee.On("test")
 	expect(t, len(event.Args), 1)
@@ -178,10 +178,9 @@ func TestOrSkipOnce(t *testing.T) {
 
 func TestVoid(t *testing.T) {
 	ee := New(0)
-	casted := ee.(*emitter)
-	expect(t, len(casted.middlewares), 0)
+	expect(t, len(ee.middlewares), 0)
 	ee.Use("*", Void)
-	expect(t, len(casted.middlewares), 1)
+	expect(t, len(ee.middlewares), 1)
 	ch := make(chan struct{})
 	pipe := ee.On("test")
 	go func() {
@@ -195,7 +194,7 @@ func TestVoid(t *testing.T) {
 	<-ch
 	ee.Use("*")
 	ee.Off("*", pipe)
-	expect(t, len(casted.middlewares), 0)
+	expect(t, len(ee.middlewares), 0)
 	l, _ := ee.Listeners("*")
 	expect(t, len(l), 0)
 	ee.On("test", Void)

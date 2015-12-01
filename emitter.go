@@ -53,43 +53,25 @@ func Close(e *Event) { e.Flags = e.Flags | FlagClose }
 // Sync middleware sets FlagSync flag for an event
 func Sync(e *Event) { e.Flags = e.Flags | FlagSync }
 
-// New returns just created Emitter interface. Capacity argument
+// New returns just created Emitter struct. Capacity argument
 // will be used to create channels with given capacity
-func New(capacity uint) Emitter {
-	return &emitter{
+func New(capacity uint) *Emitter {
+	return &Emitter{
+		Cap:         capacity,
 		listeners:   make(map[string][]listener),
-		capacity:    capacity,
 		middlewares: make(map[string][]func(*Event)),
+		isInit:      true,
 	}
 }
 
-// Emitter is an interface that allow to emit, receive
+// Emitter is a struct that allows to emit, receive
 // event, close receiver channel, get info
 // about topics and listeners
-type Emitter interface {
-	// Use registers middlewares for the pattern, returns an error if pattern
-	// invalid or middlewares are not specified.
-	Use(string, ...func(*Event)) error
-	// On returns a channel that will receive events. As optional second
-	// argument it takes func(*Event) type to describe behavior what you expect.
-	On(string, ...func(*Event)) <-chan Event
-	// Off unsubscribes all listeners which were covered by
-	// topic, it can be pattern as well.
-	Off(string, ...<-chan Event) error
-	// Emit emits an event with the rest arguments to all
-	// listeners which were covered by topic(it can be pattern).
-	Emit(string, ...interface{}) chan error
-	// Listeners returns slice of listeners which were covered by
-	// topic(it can be pattern) and error if pattern is invalid.
-	Listeners(string) ([]<-chan Event, error)
-	// Topics returns all existing topics.
-	Topics() []string
-}
-
-type emitter struct {
+type Emitter struct {
+	Cap         uint
 	mu          sync.Mutex
 	listeners   map[string][]listener
-	capacity    uint
+	isInit      bool
 	middlewares map[string][]func(*Event)
 }
 
@@ -105,14 +87,22 @@ type listener struct {
 	middlewares []func(*Event)
 }
 
+func (e *Emitter) init() {
+	if !e.isInit {
+		e.listeners = make(map[string][]listener)
+		e.middlewares = make(map[string][]func(*Event))
+		e.isInit = true
+	}
+}
+
 // Use registers middlewares for the pattern, returns an error if pattern
 // is invalid.
-func (e *emitter) Use(pattern string, middlewares ...func(*Event)) error {
+func (e *Emitter) Use(pattern string, middlewares ...func(*Event)) error {
 	if _, err := path.Match(pattern, "---"); err != nil {
 		return err
 	}
-
 	e.mu.Lock()
+	e.init()
 	defer e.mu.Unlock()
 
 	e.middlewares[pattern] = middlewares
@@ -124,9 +114,10 @@ func (e *emitter) Use(pattern string, middlewares ...func(*Event)) error {
 
 // On returns a channel that will receive events. As optional second
 // argument it takes middlewares.
-func (e *emitter) On(topic string, middlewares ...func(*Event)) <-chan Event {
+func (e *Emitter) On(topic string, middlewares ...func(*Event)) <-chan Event {
 	e.mu.Lock()
-	l := newListener(e.capacity, middlewares...)
+	e.init()
+	l := newListener(e.Cap, middlewares...)
 	if listeners, ok := e.listeners[topic]; ok {
 		e.listeners[topic] = append(listeners, l)
 	} else {
@@ -138,8 +129,9 @@ func (e *emitter) On(topic string, middlewares ...func(*Event)) <-chan Event {
 
 // Off unsubscribes all listeners which were covered by
 // topic, it can be pattern as well.
-func (e *emitter) Off(topic string, channels ...<-chan Event) error {
+func (e *Emitter) Off(topic string, channels ...<-chan Event) error {
 	e.mu.Lock()
+	e.init()
 	match, err := e.matched(topic)
 	if err != nil {
 		defer e.mu.Unlock()
@@ -178,8 +170,9 @@ func (e *emitter) Off(topic string, channels ...<-chan Event) error {
 
 // Listeners returns slice of listeners which were covered by
 // topic(it can be pattern) and error if pattern is invalid.
-func (e *emitter) Listeners(topic string) ([]<-chan Event, error) {
+func (e *Emitter) Listeners(topic string) ([]<-chan Event, error) {
 	e.mu.Lock()
+	e.init()
 	defer e.mu.Unlock()
 	var acc []<-chan Event
 	match, err := e.matched(topic)
@@ -198,8 +191,9 @@ func (e *emitter) Listeners(topic string) ([]<-chan Event, error) {
 }
 
 // Topics returns all existing topics.
-func (e *emitter) Topics() []string {
+func (e *Emitter) Topics() []string {
 	e.mu.Lock()
+	e.init()
 	defer e.mu.Unlock()
 	acc := make([]string, len(e.listeners))
 	i := 0
@@ -212,8 +206,9 @@ func (e *emitter) Topics() []string {
 
 // Emit emits an event with the rest arguments to all
 // listeners which were covered by topic(it can be pattern).
-func (e *emitter) Emit(topic string, args ...interface{}) chan error {
+func (e *Emitter) Emit(topic string, args ...interface{}) chan error {
 	e.mu.Lock()
+	e.init()
 	done := make(chan error, 1)
 
 	match, err := e.matched(topic)
@@ -315,7 +310,7 @@ func pushEvent(
 	return
 }
 
-func (e *emitter) getMiddlewares(topic string) []func(*Event) {
+func (e *Emitter) getMiddlewares(topic string) []func(*Event) {
 	var acc []func(*Event)
 	for pattern, v := range e.middlewares {
 		if match, _ := path.Match(pattern, topic); match {
@@ -333,7 +328,7 @@ func applyMiddlewares(e *Event, fns []func(*Event)) {
 	}
 }
 
-func (e *emitter) matched(topic string) ([]string, error) {
+func (e *Emitter) matched(topic string) ([]string, error) {
 	acc := []string{}
 	var err error
 	for k := range e.listeners {
