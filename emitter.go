@@ -1,9 +1,9 @@
 /*
 Package emitter implements channel based pubsub pattern.
 The design goals are:
-	- fully functional and safety with no any internals goroutines
+	- fully functional and safety
 	- simple to understand and use
-	- make the code readable and minimalistic
+	- make the code readable, maintainable and minimalistic
 */
 package emitter
 
@@ -253,7 +253,7 @@ func (e *Emitter) Emit(topic string, args ...interface{}) chan error {
 			}
 
 			if (evn.Flags | FlagSync) == evn.Flags {
-				_, remove, _ := pushEvent(done, &lstnr, &evn)
+				_, remove, _ := pushEvent(done, lstnr.ch, &evn)
 				if remove {
 					defer e.Off(event.Topic, lstnr.ch)
 				}
@@ -262,7 +262,7 @@ func (e *Emitter) Emit(topic string, args ...interface{}) chan error {
 				haveToWait = true
 				go func(lstnr listener, event *Event) {
 					e.mu.Lock()
-					_, remove, _ := pushEvent(done, &lstnr, event)
+					_, remove, _ := pushEvent(done, lstnr.ch, event)
 					if remove {
 						defer e.Off(event.Topic, lstnr.ch)
 					}
@@ -290,7 +290,7 @@ func (e *Emitter) Emit(topic string, args ...interface{}) chan error {
 
 func pushEvent(
 	done chan error,
-	lstnr *listener,
+	lstnr chan Event,
 	event *Event,
 ) (success, remove bool, err error) {
 	// unwind the flags
@@ -300,7 +300,7 @@ func pushEvent(
 
 	sent, canceled := send(
 		done,
-		lstnr.ch,
+		lstnr,
 		*event,
 		!(isSkip || isClose),
 	)
