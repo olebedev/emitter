@@ -18,15 +18,14 @@ func TestFlatClose(t *testing.T) {
 	ch := make(chan struct{})
 	pipe := ee.On("test")
 	ee.On("test", Close)
-	l, _ := ee.Listeners("test")
+	l := ee.Listeners("test")
 	expect(t, len(l), 2)
 	go func() {
 		event := <-pipe
 		expect(t, len(event.Args), 1)
 		ch <- struct{}{}
 	}()
-	err := <-ee.Emit("test", "close")
-	expect(t, err == nil, true)
+	<-ee.Emit("test", "close")
 	<-ch
 
 	go func() {
@@ -34,7 +33,7 @@ func TestFlatClose(t *testing.T) {
 		}
 		ch <- struct{}{}
 	}()
-	l, _ = ee.Listeners("test")
+	l = ee.Listeners("test")
 
 	expect(t, len(l), 1)
 	ee.Off("test", pipe)
@@ -62,11 +61,11 @@ func TestOff(t *testing.T) {
 	ee.On("test")
 	ee.On("test")
 	expect(t, len(ee.Topics()), 1)
-	l, _ := ee.Listeners("test")
+	l := ee.Listeners("test")
 	expect(t, len(l), 2)
 
 	ee.Off("test")
-	l, _ = ee.Listeners("test")
+	l = ee.Listeners("test")
 	expect(t, len(l), 0)
 	expect(t, len(ee.Topics()), 0)
 }
@@ -82,10 +81,10 @@ func TestRange(t *testing.T) {
 		// ee.Off("test")
 		break
 	}
-	l, _ := ee.Listeners("test")
+	l := ee.Listeners("test")
 	expect(t, len(l), 1)
 	<-ee.Emit("test", "range", "it", 42)
-	l, _ = ee.Listeners("test")
+	l = ee.Listeners("test")
 	expect(t, len(l), 0)
 }
 
@@ -93,11 +92,11 @@ func TestCloseOnBlock(t *testing.T) {
 	ee := New(0)
 
 	ee.On("test0", Close)
-	l, _ := ee.Listeners("test0")
+	l := ee.Listeners("test0")
 	expect(t, len(l), 1)
 	expect(t, len(ee.Topics()), 1)
 	<-ee.Emit("test0")
-	l, _ = ee.Listeners("test0")
+	l = ee.Listeners("test0")
 	expect(t, len(l), 0)
 	expect(t, len(ee.Topics()), 0)
 
@@ -109,71 +108,62 @@ func TestCloseOnBlock(t *testing.T) {
 	<-ee.Emit("test1")
 	<-ee.Emit("test1")
 	<-ee.Emit("test1")
-	l, err := ee.Listeners("test1")
+	l = ee.Listeners("test1")
 	expect(t, len(l), 1)
-	expect(t, err == nil, true)
 	expect(t, len(ee.Topics()), 2)
 	<-ee.Emit("test1") // should raise blockedError
 	// ^^^^ and remove the topic as well
-	l, err = ee.Listeners("test1")
+	l = ee.Listeners("test1")
 	expect(t, len(l), 0)
-	expect(t, err == nil, true)
 	expect(t, len(ee.Topics()), 1)
 	<-ee.Emit("test2")
 	<-ee.Emit("test2")
 	<-ee.Emit("test2")
 	expect(t, len(ee.Topics()), 1)
-	l, err = ee.Listeners("test2")
-	expect(t, err == nil, true)
+	l = ee.Listeners("test2")
 	expect(t, len(l[0]), 3)
 	<-ee.Emit("test2") // should raise blockedError
 	// ^^^^ and remove the topic as well
-	l, err = ee.Listeners("test2")
-	expect(t, err == nil, true)
+	l = ee.Listeners("test2")
 	expect(t, len(l), 0)
 	expect(t, len(ee.Topics()), 0)
 }
 
-func TestInvalidPattern(t *testing.T) {
-	ee := New(0)
-	ee.On("test")
-	list, err := ee.Listeners("\\")
-	expect(t, len(list), 0)
-	expect(t, err != nil, true)
-	expect(t, err.Error(), "syntax error in pattern")
-
-	err = ee.Off("\\")
-	expect(t, err.Error(), "syntax error in pattern")
-	err = <-ee.Emit("\\")
-	expect(t, err.Error(), "syntax error in pattern")
-}
+// func TestInvalidPattern(t *testing.T) {
+// 	ee := New(0)
+// 	ee.On("test")
+// 	list, err := ee.Listeners("\\")
+// 	expect(t, len(list), 0)
+// 	expect(t, err != nil, true)
+// 	expect(t, err.Error(), "syntax error in pattern")
+//
+// 	err = ee.Off("\\")
+// 	expect(t, err.Error(), "syntax error in pattern")
+// 	err = <-ee.Emit("\\")
+// 	expect(t, err.Error(), "syntax error in pattern")
+// }
 
 func TestOnOffAll(t *testing.T) {
 	ee := New(0)
 	ee.On("*")
-	l, err := ee.Listeners("test")
+	l := ee.Listeners("test")
 	expect(t, len(l), 1)
-	expect(t, err == nil, true)
 
-	err = ee.Off("*")
-	expect(t, err == nil, true)
-	l, err = ee.Listeners("test")
+	ee.Off("*")
+	l = ee.Listeners("test")
 	expect(t, len(l), 0)
-	expect(t, err == nil, true)
 }
 
 func TestOrSkipOnce(t *testing.T) {
 	ee := New(0)
 	pipe := ee.On("test", Skip, Once)
 	<-ee.Emit("test")
-	l, err := ee.Listeners("test")
+	l := ee.Listeners("test")
 	expect(t, len(l), 1)
-	expect(t, err == nil, true)
 	go ee.Emit("test")
 	<-pipe
-	l, err = ee.Listeners("test")
+	l = ee.Listeners("test")
 	expect(t, len(l), 0)
-	expect(t, err == nil, true)
 }
 
 func TestVoid(t *testing.T) {
@@ -195,7 +185,7 @@ func TestVoid(t *testing.T) {
 	ee.Use("*")
 	ee.Off("*", pipe)
 	expect(t, len(ee.middlewares), 0)
-	l, _ := ee.Listeners("*")
+	l := ee.Listeners("*")
 	expect(t, len(l), 0)
 	ee.On("test", Void)
 	// unblocked, sending will be skipped
@@ -210,11 +200,6 @@ func TestOnceClose(t *testing.T) {
 	<-ee.Emit("test")
 }
 
-func TestUse(t *testing.T) {
-	ee := New(0)
-	expect(t, ee.Use("\\").Error(), "syntax error in pattern")
-}
-
 func TestCancellation(t *testing.T) {
 	ee := New(0)
 	pipe := ee.On("test", Once)
@@ -225,7 +210,7 @@ func TestCancellation(t *testing.T) {
 		case <-done:
 			expect(t, "cancellation success", "cancellation failure")
 		case <-time.After(1e5):
-			done <- nil
+			done <- struct{}{}
 			ch <- struct{}{}
 		}
 	}()
@@ -233,7 +218,7 @@ func TestCancellation(t *testing.T) {
 	<-ch
 
 	go ee.Emit("test", 2)
-	l, _ := ee.Listeners("*")
+	l := ee.Listeners("*")
 	expect(t, len(l), 1)
 	e := <-pipe
 	expect(t, e.Int(0), 2)
@@ -290,10 +275,10 @@ func TestSync(t *testing.T) {
 	ee.Use("*", Sync)
 	pipe := ee.On("test")
 	pipe2 := ee.On("test", Once)
-	err, isOpened := <-ee.Emit("test", 42)
+	_, isOpened := <-ee.Emit("test", 42)
 	expect(t, len(pipe), 1)
 	expect(t, len(pipe2), 1)
-	expect(t, err == nil, true)
+
 	expect(t, isOpened, false)
 
 	e, isOpened := <-pipe2

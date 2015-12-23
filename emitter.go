@@ -97,10 +97,7 @@ func (e *Emitter) init() {
 
 // Use registers middlewares for the pattern, returns an error if pattern
 // is invalid.
-func (e *Emitter) Use(pattern string, middlewares ...func(*Event)) error {
-	if _, err := path.Match(pattern, "---"); err != nil {
-		return err
-	}
+func (e *Emitter) Use(pattern string, middlewares ...func(*Event)) {
 	e.mu.Lock()
 	e.init()
 	defer e.mu.Unlock()
@@ -109,7 +106,6 @@ func (e *Emitter) Use(pattern string, middlewares ...func(*Event)) error {
 	if len(e.middlewares[pattern]) == 0 {
 		delete(e.middlewares, pattern)
 	}
-	return nil
 }
 
 // On returns a channel that will receive events. As optional second
@@ -135,14 +131,11 @@ func (e *Emitter) Once(topic string, middlewares ...func(*Event)) <-chan Event {
 
 // Off unsubscribes all listeners which were covered by
 // topic, it can be pattern as well.
-func (e *Emitter) Off(topic string, channels ...<-chan Event) error {
+func (e *Emitter) Off(topic string, channels ...<-chan Event) {
 	e.mu.Lock()
+	defer e.mu.Unlock()
 	e.init()
-	match, err := e.matched(topic)
-	if err != nil {
-		defer e.mu.Unlock()
-		return err
-	}
+	match, _ := e.matched(topic)
 
 	for _, _topic := range match {
 		if listeners, ok := e.listeners[_topic]; ok {
@@ -170,21 +163,16 @@ func (e *Emitter) Off(topic string, channels ...<-chan Event) error {
 			delete(e.listeners, _topic)
 		}
 	}
-	e.mu.Unlock()
-	return nil
 }
 
 // Listeners returns slice of listeners which were covered by
 // topic(it can be pattern) and error if pattern is invalid.
-func (e *Emitter) Listeners(topic string) ([]<-chan Event, error) {
+func (e *Emitter) Listeners(topic string) []<-chan Event {
 	e.mu.Lock()
 	e.init()
 	defer e.mu.Unlock()
 	var acc []<-chan Event
-	match, err := e.matched(topic)
-	if err != nil {
-		return acc, err
-	}
+	match, _ := e.matched(topic)
 
 	for _, _topic := range match {
 		list := e.listeners[_topic]
@@ -193,7 +181,7 @@ func (e *Emitter) Listeners(topic string) ([]<-chan Event, error) {
 		}
 	}
 
-	return acc, nil
+	return acc
 }
 
 // Topics returns all existing topics.
@@ -212,18 +200,12 @@ func (e *Emitter) Topics() []string {
 
 // Emit emits an event with the rest arguments to all
 // listeners which were covered by topic(it can be pattern).
-func (e *Emitter) Emit(topic string, args ...interface{}) chan error {
+func (e *Emitter) Emit(topic string, args ...interface{}) chan struct{} {
 	e.mu.Lock()
 	e.init()
-	done := make(chan error, 1)
+	done := make(chan struct{}, 1)
 
-	match, err := e.matched(topic)
-	if err != nil {
-		done <- err
-		close(done)
-		e.mu.Unlock()
-		return done
-	}
+	match, _ := e.matched(topic)
 
 	var wg sync.WaitGroup
 	var haveToWait bool
@@ -273,7 +255,7 @@ func (e *Emitter) Emit(topic string, args ...interface{}) chan error {
 		}
 
 		if haveToWait {
-			go func(done chan error) {
+			go func(done chan struct{}) {
 				defer func() { recover() }()
 				wg.Wait()
 				close(done)
@@ -289,7 +271,7 @@ func (e *Emitter) Emit(topic string, args ...interface{}) chan error {
 }
 
 func pushEvent(
-	done chan error,
+	done chan struct{},
 	lstnr chan Event,
 	event *Event,
 ) (success, remove bool, err error) {
@@ -355,7 +337,7 @@ func drop(l []listener, i int) []listener {
 	return append(l[:i], l[i+1:]...)
 }
 
-func send(done chan error, ch chan Event, e Event, wait bool) (bool, bool) {
+func send(done chan struct{}, ch chan Event, e Event, wait bool) (bool, bool) {
 
 	if !wait {
 		select {
