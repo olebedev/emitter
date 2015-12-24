@@ -1,7 +1,6 @@
 package emitter
 
 import "testing"
-import "time"
 
 func TestGroupInternals(t *testing.T) {
 	g := &Group{}
@@ -53,12 +52,6 @@ func TestGroupBasic(t *testing.T) {
 	_, ok := <-pipe
 	expect(t, ok, false)
 
-	e.Off("*")
-	e2.Off("*")
-	e3.Off("*")
-
-	<-time.After(30 * time.Millisecond)
-	expect(t, len(g.cases), 1)
 }
 
 func TestGroupFlushOnOff(t *testing.T) {
