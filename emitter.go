@@ -95,8 +95,7 @@ func (e *Emitter) init() {
 	}
 }
 
-// Use registers middlewares for the pattern, returns an error if pattern
-// is invalid.
+// Use registers middlewares for the pattern.
 func (e *Emitter) Use(pattern string, middlewares ...func(*Event)) {
 	e.mu.Lock()
 	e.init()
@@ -337,16 +336,28 @@ func drop(l []listener, i int) []listener {
 	return append(l[:i], l[i+1:]...)
 }
 
-func send(done chan struct{}, ch chan Event, e Event, wait bool) (bool, bool) {
+func send(
+	done chan struct{},
+	ch chan Event,
+	e Event, wait bool,
+) (sent, canceled bool) {
+
+	// defer func() {
+	// 	if r := recover(); r != nil {
+	// 		canceled = false
+	// 		sent = false
+	// 	}
+	// }()
 
 	if !wait {
 		select {
 		case <-done:
 			break
 		case ch <- e:
-			return true, false
+			sent = true
+			return
 		default:
-			return false, false
+			return
 		}
 
 	} else {
@@ -354,9 +365,11 @@ func send(done chan struct{}, ch chan Event, e Event, wait bool) (bool, bool) {
 		case <-done:
 			break
 		case ch <- e:
-			return true, false
+			sent = true
+			return
 		}
 
 	}
-	return false, true
+	canceled = true
+	return
 }
