@@ -146,8 +146,47 @@ e.On("change", func(event *Event){
 ```
 
 ## Groups
-> TODO
+Group merges different listeners into one channel.
+Example:
+```go
+e1 := &emitter.Emitter{}
+e2 := &emitter.Emitter{}
+e3 := &emitter.Emitter{}
+
+g := &emitter.Group{Cap: 1}
+g.Add(e1.On("first"), e1.On("second"), e1.On("third"))
+
+for event := g.On() {
+	// handle the event
+	// event has field OriginalTopic and Topic
+}
+```
+Also you can combine several groups into one.
+
+See the api [here](https://godoc.org/github.com/olebedev/emitter#Group).
+
 
 ## Event
-> TODO
+Event is struct that contain event []info](https://godoc.org/github.com/olebedev/emitter#Event). Also Event has some helpers to cast arguments into `bool`, `string`, `float64`, `int` by given argiment index with optional default value.
+
+Example:
+```go
+
+go e.Emit("*", "some string", 42, 37.0, true)
+event := <-e.Once("*")
+
+first := event.String(0)
+second := event.Int(1)
+third := event.Float(2)
+fourth := event.Bool(3)
+
+// use default value if not exists
+dontExists := event.Int(10, 64)
+// or use dafault value if type don't match
+def := event.Int(0, 128)
+
+// .. an so on
+```
+
+
 
