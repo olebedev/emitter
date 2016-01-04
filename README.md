@@ -167,7 +167,7 @@ See the api [here](https://godoc.org/github.com/olebedev/emitter#Group).
 
 
 ## Event
-Event is struct that contain event []info](https://godoc.org/github.com/olebedev/emitter#Event). Also Event has some helpers to cast arguments into `bool`, `string`, `float64`, `int` by given argiment index with optional default value.
+Event is struct that contain event [info](https://godoc.org/github.com/olebedev/emitter#Event). Also Event has some helpers to cast arguments into `bool`, `string`, `float64`, `int` by given argiment index with optional default value.
 
 Example:
 ```go
