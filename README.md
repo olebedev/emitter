@@ -8,13 +8,13 @@ Go has expressive concurrency model but nobody doesn't use it properly for pubsu
 
 ## It does:
 
-- [sync/async event emitting](#Flags) 
-- [predicates/middlewares](#Middlewares)
-- [bi-directional wildcard](#Wildcard)
-- [discard emitting if needed](#Discard emitting)
-- [merge events from different channels](#Groups)
-- [shallow on demand type casting](#Event)
-- [work with callbacks(traditional way)](#Middlewares)
+- [sync/async event emitting](#flags) 
+- [predicates/middlewares](#middlewares)
+- [bi-directional wildcard](#wildcard)
+- [discard emitting if needed](#discard-emitting)
+- [merge events from different channels](#groups)
+- [shallow on demand type casting](#event)
+- [work with callbacks(traditional way)](#middlewares)
 
 
 ## Brief examples
