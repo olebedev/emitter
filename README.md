@@ -14,7 +14,7 @@ Go has expressive concurrency model but nobody doesn't use it properly for pubsu
 - [discard emitting if needed](#cancellation)
 - [merge events from different channels](#groups)
 - [shallow on demand type casting](#event)
-- [work with callbacks(traditional way)](#callbacks-only)
+- [work with callbacks(traditional way)](#callbacks-only-usage)
 
 
 ## Brief example
