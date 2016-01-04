@@ -11,7 +11,7 @@ Go has expressive concurrency model but nobody doesn't use it properly for pubsu
 - [sync/async event emitting](#flags) 
 - [predicates/middlewares](#middlewares)
 - [bi-directional wildcard](#wildcard)
-- [discard emitting if needed](#discard-emitting)
+- [discard emitting if needed](#cancellation)
 - [merge events from different channels](#groups)
 - [shallow on demand type casting](#event)
 - [work with callbacks(traditional way)](#middlewares)
@@ -37,7 +37,7 @@ for event := e.On("change") {
 ## Constructor
 `emitter.New` takes a `uint` as first argument to indicate what buffer size should be used for listeners. Also possible to change capacity at runtime: `e.Cap = 10`.
 
-By default emitter use goroutine per listener to send an event. You may want to change it via `e.Use("*", emitter.Sync)`. I recommend to specify middlewares(see below) for the emitter at start.
+By default emitter use goroutine per listener to send an event. You may want to change it via `e.Use("*", emitter.Sync)`. I recommend to specify middlewares(see [below](#middlewares)) for the emitter at start.
 
 ## Wildcard
 The package allows publications and subscriptions with wildcard.  This feature based on `path.Match` function.
@@ -68,11 +68,13 @@ There are two ways to add middleware into emitting flow:
 - via .On("event", middlewares...)
 - via .Use("event", middlewares...)
 
-The first add middlewares ony for this listener, but second add middlewares for all events with given topic. 
+The first add middlewares ony for this listener, but the second add middlewares for all events with given topic. 
 
-Example:
+For example:
 ```go
-e.Use("*", emitter.Sync) // use synchronous mode for all events, it also depends on emitter capacity(buffered/unbuffered channels)
+// use synchronous mode for all events, it also depends 
+// on emitter capacity(buffered/unbuffered channels)
+e.Use("*", emitter.Sync) 
 go e.Emit("something:special", 42)
 
 // define predicate
@@ -104,12 +106,12 @@ You can combine it as a chain:
 ```go
 e.Use("*", emitter.Void) // skip sending for any events
 go e.Emit("surprise", 65536)
-event := <-e.On("*", emitter.Reset, emitter.Sync, emitter.Once) // set custom fields for this listener
+event := <-e.On("*", emitter.Reset, emitter.Sync, emitter.Once) // set custom flags for this listener
 pintln(event.Int(0)) // prints 65536
 ```
 
-## Discard emitting
-Golang give as more control for asynchronous flow. We may know it the channel is blocked and we may discard sending as well. So, emitter allows to discard emitting based on this language feature. It's good practice to design your application with timeouts an cancellation possibilities.
+## Cancellation
+Golang give as more control for asynchronous flow. We may know it the channel is blocked and we may discard sending as well. So, emitter allows to discard emitting based on this language feature. It's good practice to design your application with timeouts and cancellation possibilities.
 
 Assume you have time out to emit the events:
 ```go
@@ -128,7 +130,20 @@ It's pretty useful to control any goroutines inside th emitter instance.
 
 
 ## Callbacks only usage
-> TODO
+Use emitter in traditional way is also possible. If you don't need async mode or you very attentive to application resources. The recipe is use emitter with zero capacity, define `FlagVoid` to skip sending into the listener channel and use middleware as callback:
+
+```go
+e := &emitter.Emitter{}
+e.Use("*", emitter.Void) 
+
+go e.Emit("change", "field", "value")
+e.On("change", func(event *Event){
+	// handle changes here
+	field := event.String(0)
+	value := event.String(1)
+	// ...and so on
+})
+```
 
 ## Groups
 > TODO
