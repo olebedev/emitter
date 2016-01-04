@@ -154,7 +154,7 @@ e2 := &emitter.Emitter{}
 e3 := &emitter.Emitter{}
 
 g := &emitter.Group{Cap: 1}
-g.Add(e1.On("first"), e1.On("second"), e1.On("third"))
+g.Add(e1.On("first"), e2.On("second"), e3.On("third"))
 
 for event := g.On() {
 	// handle the event
