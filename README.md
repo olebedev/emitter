@@ -19,7 +19,6 @@ Go has expressive concurrency model but nobody doesn't use it properly for pubsu
 
 ## Brief example
 
-Simple usage:
 ```go
 e := &emitter.Emitter{}
 go func(){
@@ -34,6 +33,11 @@ for event := e.On("change") {
 }
 // listener channel was closed
 ```
+
+## Constructor
+`emitter.New` takes a `uint` as first argument to indicate what buffer size should be used for listeners. Also possible to change capacity at runtime: `e.Cap = 10`.
+
+By default emitter use goroutine per listener to send an event. You may want to change it via `e.Use("*", emitter.Sync)`. I recommend to specify middlewares(see below) for the emitter at start.
 
 ## Wildcard
 The package allows publications and subscriptions with wildcard.  This feature based on `path.Match` function.
@@ -68,7 +72,7 @@ The first add middlewares ony for this listener, but second add middlewares for 
 
 Example:
 ```go
-e.Use("*", emitter.Sync) // use synchronous mode for all events
+e.Use("*", emitter.Sync) // use synchronous mode for all events, it also depends on emitter capacity(buffered/unbuffered channels)
 go e.Emit("something:special", 42)
 
 // define predicate
@@ -105,7 +109,23 @@ pintln(event.Int(0)) // prints 65536
 ```
 
 ## Discard emitting
-> TODO
+Golang give as more control for asynchronous flow. We may know it the channel is blocked and we may discard sending as well. So, emitter allows to discard emitting based on this language feature. It's good practice to design your application with timeouts an cancellation possibilities.
+
+Assume you have time out to emit the events:
+```go
+done := e.Emit("broadcast", "the", "event", "with", "timeout")
+
+select {
+case <-done:
+	// so the sending is done
+case <-time.After(timeout):
+	// time is out, let's discard emitting
+	close(done)
+}
+```
+
+It's pretty useful to control any goroutines inside th emitter instance. 
+
 
 ## Callbacks only usage
 > TODO
@@ -115,3 +135,4 @@ pintln(event.Int(0)) // prints 65536
 
 ## Event
 > TODO
+
