@@ -14,7 +14,7 @@ Go has expressive concurrency model but nobody doesn't use it properly for pubsu
 - [discard emitting if needed](#cancellation)
 - [merge events from different channels](#groups)
 - [shallow on demand type casting](#event)
-- [work with callbacks(traditional way)](#middlewares)
+- [work with callbacks(traditional way)](#callbacks-only)
 
 
 ## Brief example
@@ -129,7 +129,7 @@ case <-time.After(timeout):
 It's pretty useful to control any goroutines inside th emitter instance. 
 
 
-## Callbacks only usage
+## Callbacks-only usage
 Use emitter in traditional way is also possible. If you don't need async mode or you very attentive to application resources. The recipe is use emitter with zero capacity, define `FlagVoid` to skip sending into the listener channel and use middleware as callback:
 
 ```go
