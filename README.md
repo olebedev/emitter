@@ -17,8 +17,9 @@ Go has expressive concurrency model but nobody doesn't use it properly for pubsu
 - [work with callbacks(traditional way)](#middlewares)
 
 
-## Brief examples
+## Brief example
 
+Simple usage:
 ```go
 e := &emitter.Emitter{}
 go func(){
@@ -29,7 +30,7 @@ go func(){
 
 for event := e.On("change") {
 	// do something with event.Args
-	plintln(event.Int(0))
+	plintln(event.Int(0)) // cast first argument to int
 }
 // listener channel was closed
 ```
@@ -41,21 +42,45 @@ Example:
 
 ```go
 go e.Emit("something:special", 42)
-event := <-e.Once("*") // grub any events
+event := <-e.Once("*"} // grub any events
 println(event.Int(0)) // will print 42
 
 // or emit event with wildcard path
 go e.Emit("*", 37) // emmit for everyone
 event := <-e.Once("something:special")
 println(event.Int(0)) // will print 37
+})
 ```
 
 Note that wildcard uses `path.Match`, but the lib is not return errors related for parsing. As this is not main feature. Please check the topic explicitly via `emitter.Test()` function.
 
 
 ## Middlewares
-Important part of pubsub package is predicats. It should be allow to skip some event. There are middlewares to solve this problem.
-> TODO
+Important part of pubsub package is predicates. It should be allow to skip some event. Middlewares solve this problem. 
+Middleware is a function that takes a pointer to the Event as first argument. All that middlewares can do is just modify the event. It allows to skip sending it needed or modify event's agruments. Or specify the mode to describe how exactly event should be emit(see [below](#flags)).
+
+There are two ways to add middleware into emitting flow:
+
+- via .On("event", middlewares...)
+- via .Use("event", middlewares...)
+
+The first add middlewares ony for this listener, but second add middlewares for all events with given topic. 
+
+Example:
+```go
+e.Use("*", emitter.Sync) // use synchronous mode for all events
+go e.Emit("something:special", 42)
+
+// define predicate
+event := <-e.Once("*", func(ev *emitter.Event){
+	if ev.Int(0) == 42 {
+	    // skip sending
+		ev.Flags = ev.Flags | emitter.FlagVoid
+	}
+})
+panic("will never happen")
+```
+
 
 ## Flags 
 fully [sync](#Flags) via unbuffered channels or callbacks or [async](#Flags) via buffered channels and/or goroutines
