@@ -46,14 +46,13 @@ Example:
 
 ```go
 go e.Emit("something:special", 42)
-event := <-e.Once("*"} // grub any events
+event := <-e.Once("*") // grub any events
 println(event.Int(0)) // will print 42
 
 // or emit event with wildcard path
 go e.Emit("*", 37) // emmit for everyone
 event := <-e.Once("something:special")
 println(event.Int(0)) // will print 37
-})
 ```
 
 Note that wildcard uses `path.Match`, but the lib is not return errors related for parsing. As this is not main feature. Please check the topic explicitly via `emitter.Test()` function.
