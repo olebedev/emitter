@@ -184,8 +184,11 @@ dontExists := event.Int(10, 64)
 // or use dafault value if type don't match
 def := event.Int(0, 128)
 
-// .. an so on
+// .. and so on
 ```
+
+## License
+MIT
 
 
 
