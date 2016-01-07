@@ -124,8 +124,7 @@ func (e *Emitter) On(topic string, middlewares ...func(*Event)) <-chan Event {
 
 // Once works exactly like On(see above) but with `Once` as the first middleware.
 func (e *Emitter) Once(topic string, middlewares ...func(*Event)) <-chan Event {
-	m := []func(*Event){Once}
-	return e.On(topic, append(m, middlewares...)...)
+	return e.On(topic, append(middlewares, Once)...)
 }
 
 // Off unsubscribes all listeners which were covered by
