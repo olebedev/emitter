@@ -99,6 +99,7 @@ There are several predefined middlewares to set needed flags:
 - [`emitter.Close`](https://godoc.org/github.com/olebedev/emitter#Close)
 - [`emitter.Void`](https://godoc.org/github.com/olebedev/emitter#Void)
 - [`emitter.Skip`](https://godoc.org/github.com/olebedev/emitter#Skip)
+- [`emitter.Sync`](https://godoc.org/github.com/olebedev/emitter#Sync)
 - [`emitter.Reset`](https://godoc.org/github.com/olebedev/emitter#Reset)
 
 You can combine it as a chain:
