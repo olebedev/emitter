@@ -6,7 +6,7 @@ Package emitter implements channel based pubsub pattern. The design goals are us
 Go has expressive concurrency model but nobody doesn't use it properly for pubsub, as I see(at the end of 2015). I had implemented my own as I didn't find any acceptable. Please, read [this article](#) for more information.
 
 
-## It does:
+## What it does?
 
 - [sync/async event emitting](#flags) 
 - [predicates/middlewares](#middlewares)
