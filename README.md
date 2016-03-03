@@ -27,7 +27,7 @@ go func(){
 	e.Off("*") // unsubscribe any listeners
 }()
 
-for event := e.On("change") {
+for event := range e.On("change") {
 	// do something with event.Args
 	plintln(event.Int(0)) // cast first argument to int
 }
