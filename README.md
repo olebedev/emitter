@@ -8,7 +8,7 @@ Go has expressive concurrency model but nobody doesn't use it properly for pubsu
 
 ## What it does?
 
-- [sync/async event emitting](#flags) 
+- [sync/async event emitting](#flags)
 - [predicates/middlewares](#middlewares)
 - [bi-directional wildcard](#wildcard)
 - [discard emitting if needed](#cancellation)
@@ -22,7 +22,7 @@ Go has expressive concurrency model but nobody doesn't use it properly for pubsu
 ```go
 e := &emitter.Emitter{}
 go func(){
-	<-e.Emit("change", 42) // wait for event sent successfully 
+	<-e.Emit("change", 42) // wait for event sent successfully
 	<-e.Emit("change", 37)
 	e.Off("*") // unsubscribe any listeners
 }()
@@ -59,7 +59,7 @@ Note that wildcard uses `path.Match`, but the lib is not return errors related f
 
 
 ## Middlewares
-Important part of pubsub package is predicates. It should be allow to skip some event. Middlewares solve this problem. 
+Important part of pubsub package is predicates. It should be allow to skip some event. Middlewares solve this problem.
 Middleware is a function that takes a pointer to the Event as first argument. All that middlewares can do is just modify the event. It allows to skip sending it needed or modify event's agruments. Or specify the mode to describe how exactly event should be emitted(see [below](#flags)).
 
 There are two ways to add middleware into emitting flow:
@@ -67,13 +67,13 @@ There are two ways to add middleware into emitting flow:
 - via .On("event", middlewares...)
 - via .Use("event", middlewares...)
 
-The first add middlewares ony for this listener, but the second add middlewares for all events with given topic. 
+The first add middlewares ony for this listener, but the second add middlewares for all events with given topic.
 
 For example:
 ```go
-// use synchronous mode for all events, it also depends 
+// use synchronous mode for all events, it also depends
 // on emitter capacity(buffered/unbuffered channels)
-e.Use("*", emitter.Sync) 
+e.Use("*", emitter.Sync)
 go e.Emit("something:special", 42)
 
 // define predicate
@@ -87,11 +87,11 @@ panic("will never happen")
 ```
 
 
-## Flags 
+## Flags
 Flags needs to describe how exactly the event should be emitted. Available options are listed [here](https://godoc.org/github.com/olebedev/emitter#Flag).
 
-Every event(`emitter.Event`) has field `.Flags` that contains flags as binary mask. 
-Flags can be set only via middlewares(see above). 
+Every event(`emitter.Event`) has field `.Flags` that contains flags as binary mask.
+Flags can be set only via middlewares(see above).
 
 There are several predefined middlewares to set needed flags:
 
@@ -126,7 +126,7 @@ case <-time.After(timeout):
 }
 ```
 
-It's pretty useful to control any goroutines inside th emitter instance. 
+It's pretty useful to control any goroutines inside th emitter instance.
 
 
 ## Callbacks-only usage
@@ -134,7 +134,7 @@ Use emitter in traditional way is also possible. If you don't need async mode or
 
 ```go
 e := &emitter.Emitter{}
-e.Use("*", emitter.Void) 
+e.Use("*", emitter.Void)
 
 go e.Emit("change", "field", "value")
 e.On("change", func(event *Event){
@@ -190,6 +190,3 @@ def := event.Int(0, 128)
 
 ## License
 MIT
-
-
-
