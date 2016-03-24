@@ -252,16 +252,15 @@ func (e *Emitter) Emit(topic string, args ...interface{}) chan struct{} {
 			}
 		}
 
-		if haveToWait {
-			go func(done chan struct{}) {
-				defer func() { recover() }()
-				wg.Wait()
-				close(done)
-			}(done)
-		} else {
+	}
+	if haveToWait {
+		go func(done chan struct{}) {
+			defer func() { recover() }()
+			wg.Wait()
 			close(done)
-		}
-
+		}(done)
+	} else {
+		close(done)
 	}
 
 	e.mu.Unlock()

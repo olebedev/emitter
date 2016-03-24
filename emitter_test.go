@@ -286,6 +286,13 @@ func TestSync(t *testing.T) {
 	expect(t, isOpened, true)
 	_, isOpened = <-pipe2
 	expect(t, isOpened, false)
+
+	// void
+	ee = New(0)
+	ee.Once("*", Void)
+	ee.On("test:void", Void, func(e *Event) {
+	})
+	<-ee.Emit("test:void")
 }
 
 func expect(t *testing.T, a interface{}, b interface{}) {
