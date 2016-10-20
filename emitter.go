@@ -217,6 +217,11 @@ func (e *Emitter) Emit(topic string, args ...interface{}) chan struct{} {
 
 		applyMiddlewares(&event, e.getMiddlewares(_topic))
 
+		// whole topic is skipping
+		if (event.Flags | FlagVoid) == event.Flags {
+			continue
+		}
+
 	Loop:
 		for i := len(listeners) - 1; i >= 0; i-- {
 			lstnr := listeners[i]
@@ -335,12 +340,12 @@ func send(
 	e Event, wait bool,
 ) (sent, canceled bool) {
 
-	// defer func() {
-	// 	if r := recover(); r != nil {
-	// 		canceled = false
-	// 		sent = false
-	// 	}
-	// }()
+	defer func() {
+		if r := recover(); r != nil {
+			canceled = false
+			sent = false
+		}
+	}()
 
 	if !wait {
 		select {
