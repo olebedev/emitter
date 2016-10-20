@@ -294,17 +294,17 @@ func TestSync(t *testing.T) {
 	<-ee.Emit("test:void")
 }
 
-// func TestCallbackOnlyUsage(t *testing.T) {
-// 	ee := New(0)
-// 	ee.Use("*", Void)
-// 	var called bool
-//
-// 	ee.On("call", func(e *Event) {
-// 		called = e.Bool(0)
-// 	})
-// 	ee.Emit("call", true)
-// 	expect(t, called, true)
-// }
+func TestCallbackOnlyUsage(t *testing.T) {
+	ee := New(0)
+	ee.Use("*", Void)
+	var called bool
+
+	ee.On("call", func(e *Event) {
+		called = e.Bool(0)
+	})
+	ee.Emit("call", true)
+	expect(t, called, true)
+}
 
 func expect(t *testing.T, a interface{}, b interface{}) {
 	if a != b {
