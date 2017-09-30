@@ -1,7 +1,6 @@
 # Emitter [![wercker status](https://app.wercker.com/status/e5a44746dc89b513ed28e8a18c5c05c2/s "wercker status")](https://app.wercker.com/project/bykey/e5a44746dc89b513ed28e8a18c5c05c2) [![Coverage Status](https://coveralls.io/repos/olebedev/emitter/badge.svg?branch=HEAD&service=github)](https://coveralls.io/github/olebedev/emitter?branch=HEAD) [![godoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/olebedev/emitter) [![Code Climate](https://codeclimate.com/github/olebedev/emitter/badges/gpa.svg)](https://codeclimate.com/github/olebedev/emitter)
 
-Package emitter implements channel based pubsub pattern. The design goals are to use Golang concurrency model instead of flat callbacks and to design a very simple API that is easy to use and understand.
-
+The emitter package implements a channel-based pubsub pattern. The design goals are to use Golang concurrency model instead of flat callbacks and to design a very simple API that is easy to consume.
 ## Why?
 Go has expressive concurrency model but nobody uses it properly for pubsub as far as I can tell (in the year 2015). I implemented my own solution as I could not find any other that meets my expectations. Please, read [this article](#) for more information.
 
