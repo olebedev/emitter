@@ -229,6 +229,10 @@ func (e *Emitter) Emit(topic string, args ...interface{}) chan struct{} {
 			applyMiddlewares(&evn, lstnr.middlewares)
 
 			if (evn.Flags | FlagVoid) == evn.Flags {
+				if (evn.Flags | FlagOnce) == evn.Flags || (evn.Flags | FlagClose) == evn.Flags {
+					defer e.Off(event.Topic, lstnr.ch)
+				}
+
 				continue Loop
 			}
 
