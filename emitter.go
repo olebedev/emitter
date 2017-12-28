@@ -261,6 +261,10 @@ func (e *Emitter) Emit(topic string, args ...interface{}) chan struct{} {
 
 	}
 
+	e.mu.Unlock()
+
+	wgPushed.Wait()
+
 	if haveToWait {
 		go func(done chan struct{}) {
 			defer func() { recover() }()
@@ -270,10 +274,6 @@ func (e *Emitter) Emit(topic string, args ...interface{}) chan struct{} {
 	} else {
 		close(done)
 	}
-
-	e.mu.Unlock()
-
-	wgPushed.Wait()
 
 	return done
 }
@@ -361,7 +361,7 @@ func send(
 		}
 	}()
 
-	if wgPushed != nil { go wgPushed.Done() }
+	if wgPushed != nil { wgPushed.Done() }
 
 	if !wait {
 		select {
