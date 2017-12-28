@@ -147,7 +147,7 @@ func (g *Group) listen() {
 			g.mu.Lock()
 			for index := range g.listeners {
 				l := g.listeners[index]
-				pushEvent(g.done, l.ch, &e)
+				pushEvent(g.done, l.ch, &e, nil)
 			}
 			g.mu.Unlock()
 		}
