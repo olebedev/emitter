@@ -205,8 +205,10 @@ func (e *Emitter) Emit(topic string, args ...interface{}) chan struct{} {
 
 	match, _ := e.matched(topic)
 
-	var wg sync.WaitGroup
-	var haveToWait bool
+	var wgAccepted 	sync.WaitGroup
+	var wgPushed 	sync.WaitGroup
+	var haveToWait 	bool
+	
 	for _, _topic := range match {
 		listeners := e.listeners[_topic]
 		event := Event{
@@ -237,30 +239,32 @@ func (e *Emitter) Emit(topic string, args ...interface{}) chan struct{} {
 			}
 
 			if (evn.Flags | FlagSync) == evn.Flags {
-				_, remove, _ := pushEvent(done, lstnr.ch, &evn)
+				_, remove, _ := pushEvent(done, lstnr.ch, &evn, nil)
 				if remove {
 					defer e.Off(event.Topic, lstnr.ch)
 				}
 			} else {
-				wg.Add(1)
+				wgAccepted.Add(1)
+				wgPushed.Add(1)
 				haveToWait = true
-				go func(lstnr listener, event *Event) {
+				go func(lstnr listener, event *Event, wgPushed *sync.WaitGroup) {
 					e.mu.Lock()
-					_, remove, _ := pushEvent(done, lstnr.ch, event)
+					_, remove, _ := pushEvent(done, lstnr.ch, event, wgPushed)
 					if remove {
 						defer e.Off(event.Topic, lstnr.ch)
 					}
-					wg.Done()
+					wgAccepted.Done()
 					e.mu.Unlock()
-				}(lstnr, &evn)
+				}(lstnr, &evn, &wgPushed)
 			}
 		}
 
 	}
+
 	if haveToWait {
 		go func(done chan struct{}) {
 			defer func() { recover() }()
-			wg.Wait()
+			wgAccepted.Wait()
 			close(done)
 		}(done)
 	} else {
@@ -268,6 +272,9 @@ func (e *Emitter) Emit(topic string, args ...interface{}) chan struct{} {
 	}
 
 	e.mu.Unlock()
+
+	wgPushed.Wait()
+
 	return done
 }
 
@@ -275,6 +282,7 @@ func pushEvent(
 	done chan struct{},
 	lstnr chan Event,
 	event *Event,
+	wgPushed *sync.WaitGroup,
 ) (success, remove bool, err error) {
 	// unwind the flags
 	isOnce := (event.Flags | FlagOnce) == event.Flags
@@ -286,6 +294,7 @@ func pushEvent(
 		lstnr,
 		*event,
 		!(isSkip || isClose),
+		wgPushed,
 	)
 	success = sent
 
@@ -342,6 +351,7 @@ func send(
 	done chan struct{},
 	ch chan Event,
 	e Event, wait bool,
+	wgPushed *sync.WaitGroup,
 ) (sent, canceled bool) {
 
 	defer func() {
@@ -363,6 +373,8 @@ func send(
 		}
 
 	} else {
+		if wgPushed != nil { wgPushed.Done() }
+		
 		select {
 		case <-done:
 			break
