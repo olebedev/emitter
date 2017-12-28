@@ -361,6 +361,8 @@ func send(
 		}
 	}()
 
+	if wgPushed != nil { go wgPushed.Done() }
+
 	if !wait {
 		select {
 		case <-done:
@@ -373,8 +375,6 @@ func send(
 		}
 
 	} else {
-		if wgPushed != nil { wgPushed.Done() }
-		
 		select {
 		case <-done:
 			break
