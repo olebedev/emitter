@@ -54,6 +54,8 @@ func Sync(e *Event) { e.Flags = e.Flags | FlagSync }
 
 // New returns just created Emitter struct. Capacity argument
 // will be used to create channels with given capacity
+// optionally include a matcher to use or nil to use the default
+// which implements path.Match() from the system library
 func New(capacity uint, matcher Matcher) *Emitter {
 	e := &Emitter{Cap: capacity, Matcher: matcher}
 	e.init()
