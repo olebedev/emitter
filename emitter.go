@@ -8,7 +8,6 @@ The design goals are:
 package emitter
 
 import (
-	"path"
 	"sync"
 )
 
@@ -55,13 +54,10 @@ func Sync(e *Event) { e.Flags = e.Flags | FlagSync }
 
 // New returns just created Emitter struct. Capacity argument
 // will be used to create channels with given capacity
-func New(capacity uint) *Emitter {
-	return &Emitter{
-		Cap:         capacity,
-		listeners:   make(map[string][]listener),
-		middlewares: make(map[string][]func(*Event)),
-		isInit:      true,
-	}
+func New(capacity uint, matcher Matcher) *Emitter {
+	e := &Emitter{Cap: capacity, Matcher: matcher}
+	e.init()
+	return e
 }
 
 // Emitter is a struct that allows to emit, receive
@@ -73,6 +69,7 @@ type Emitter struct {
 	listeners   map[string][]listener
 	isInit      bool
 	middlewares map[string][]func(*Event)
+	Matcher     Matcher
 }
 
 func newListener(capacity uint, middlewares ...func(*Event)) listener {
@@ -92,6 +89,10 @@ func (e *Emitter) init() {
 		e.listeners = make(map[string][]listener)
 		e.middlewares = make(map[string][]func(*Event))
 		e.isInit = true
+		if e.Matcher == nil {
+			e.Matcher = DefaultMatcher()
+		}
+
 	}
 }
 
@@ -298,9 +299,9 @@ func pushEvent(
 func (e *Emitter) getMiddlewares(topic string) []func(*Event) {
 	var acc []func(*Event)
 	for pattern, v := range e.middlewares {
-		if match, _ := path.Match(pattern, topic); match {
+		if match, _ := e.Matcher.Match(pattern, topic); match {
 			acc = append(acc, v...)
-		} else if match, _ := path.Match(topic, pattern); match {
+		} else if match, _ := e.Matcher.Match(topic, pattern); match {
 			acc = append(acc, v...)
 		}
 	}
@@ -317,12 +318,12 @@ func (e *Emitter) matched(topic string) ([]string, error) {
 	acc := []string{}
 	var err error
 	for k := range e.listeners {
-		if matched, err := path.Match(topic, k); err != nil {
+		if matched, err := e.Matcher.Match(topic, k); err != nil {
 			return []string{}, err
 		} else if matched {
 			acc = append(acc, k)
 		} else {
-			if matched, _ := path.Match(k, topic); matched {
+			if matched, _ := e.Matcher.Match(k, topic); matched {
 				acc = append(acc, k)
 			}
 		}
