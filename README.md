@@ -28,7 +28,7 @@ go func(){
 
 for event := range e.On("change") {
 	// do something with event.Args
-	plintln(event.Int(0)) // cast the first argument to int
+	println(event.Int(0)) // cast the first argument to int
 }
 // listener channel was closed
 ```
