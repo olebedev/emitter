@@ -198,10 +198,11 @@ func (e *Emitter) Topics() []string {
 
 // Emit emits an event with the rest arguments to all
 // listeners which were covered by topic(it can be pattern).
-func (e *Emitter) Emit(topic string, args ...interface{}) chan struct{} {
+func (e *Emitter) Emit(topic string, args ...interface{}) <-chan interface{} {
 	e.mu.Lock()
 	e.init()
 	done := make(chan struct{}, 1)
+	result := make(chan interface{}, 1)
 
 	match, _ := e.matched(topic)
 
@@ -213,6 +214,7 @@ func (e *Emitter) Emit(topic string, args ...interface{}) chan struct{} {
 			Topic:         _topic,
 			OriginalTopic: topic,
 			Args:          args,
+			Result:        result,
 		}
 
 		applyMiddlewares(&event, e.getMiddlewares(_topic))
@@ -264,7 +266,7 @@ func (e *Emitter) Emit(topic string, args ...interface{}) chan struct{} {
 	}
 
 	e.mu.Unlock()
-	return done
+	return result
 }
 
 func pushEvent(

@@ -6,6 +6,7 @@ type Event struct {
 	Topic, OriginalTopic string
 	Flags                Flag
 	Args                 []interface{}
+	Result               chan<- interface{}
 }
 
 // Int returns casted into int type argument by index.
