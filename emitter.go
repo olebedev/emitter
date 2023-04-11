@@ -1,9 +1,9 @@
 /*
 Package emitter implements channel based pubsub pattern.
 The design goals are:
-	- fully functional and safety
-	- simple to understand and use
-	- make the code readable, maintainable and minimalistic
+  - fully functional and safety
+  - simple to understand and use
+  - make the code readable, maintainable and minimalistic
 */
 package emitter
 
@@ -54,7 +54,8 @@ func Close(e *Event) { e.Flags = e.Flags | FlagClose }
 func Sync(e *Event) { e.Flags = e.Flags | FlagSync }
 
 // New returns just created Emitter struct. Capacity argument
-// will be used to create channels with given capacity
+// will be used to create channels with given capacity by default. The
+// OnWithCap method can be used to get different capacities per listener.
 func New(capacity uint) *Emitter {
 	return &Emitter{
 		Cap:         capacity,
@@ -110,9 +111,15 @@ func (e *Emitter) Use(pattern string, middlewares ...func(*Event)) {
 // On returns a channel that will receive events. As optional second
 // argument it takes middlewares.
 func (e *Emitter) On(topic string, middlewares ...func(*Event)) <-chan Event {
+	return e.OnWithCap(topic, e.Cap, middlewares...)
+}
+
+// On returns a channel that will receive events with the listener capacity
+// specified. As optional second argument it takes middlewares.
+func (e *Emitter) OnWithCap(topic string, capacity uint, middlewares ...func(*Event)) <-chan Event {
 	e.mu.Lock()
 	e.init()
-	l := newListener(e.Cap, middlewares...)
+	l := newListener(capacity, middlewares...)
 	if listeners, ok := e.listeners[topic]; ok {
 		e.listeners[topic] = append(listeners, l)
 	} else {
