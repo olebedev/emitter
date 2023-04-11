@@ -306,6 +306,18 @@ func TestCallbackOnlyUsage(t *testing.T) {
 	expect(t, called, true)
 }
 
+func TestCustomCap(t *testing.T) {
+	// Default is no capacity
+	ee := New(0)
+	// Listen with extended capacity, use Skip to avoid hang
+	pipe := ee.OnWithCap("test", 2, Skip)
+
+	<-ee.Emit("test", 0)
+	<-ee.Emit("test", 1)
+	<-ee.Emit("test", 2) // should get dropped, proves 2 was used
+	expect(t, len(pipe), 2)
+}
+
 func expect(t *testing.T, a interface{}, b interface{}) {
 	if a != b {
 		t.Errorf("Expected %v (type %v) - Got %v (type %v)", b, reflect.TypeOf(b), a, reflect.TypeOf(a))
